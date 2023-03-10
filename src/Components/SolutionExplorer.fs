@@ -29,7 +29,7 @@ module SolutionExplorer =
             parent: Model option ref *
             path: string *
             name: string *
-            Files: Model list *
+            Files: Model ResizeArray *
             ProjectReferencesList: Model *
             ReferenceList: Model *
             isExe: bool *
@@ -155,6 +155,7 @@ module SolutionExplorer =
             |> Seq.map (fun p -> p.VirtualPath, p.FilePath)
             |> Seq.toList
             |> buildTree proj.Project
+            |> ResizeArray
 
         let packageRefs =
             proj.PackageReferences
@@ -208,7 +209,7 @@ module SolutionExplorer =
         let rec loop model lst =
             match model with
             | Workspace fls -> fls |> List.collect (fun x -> loop x lst)
-            | Project(_, _, _, fls, _, _, _, _) -> fls |> List.collect (fun x -> loop x lst)
+            | Project(_, _, _, fls, _, _, _, _) -> fls |> Seq.toList |> List.collect (fun x -> loop x lst)
             | Folder(_, _, f, fls, _) -> fls |> List.collect (fun x -> loop x lst @ [ f ])
             | _ -> []
 
@@ -556,7 +557,10 @@ module SolutionExplorer =
             | ProjectFailedToLoad(_, path, _, _)
             | ProjectNotRestored(_, path, _, _)
             | ProjectLanguageNotSupported(_, path, _) -> [ path, model ]
-            | Project(_, path, _, children, _, _, _, _)
+            | Project(_, path, _, children, _, _, _, _) ->
+                let current = path, model
+                let forChildren = children |> Seq.toList |> List.collect getModelPerFile
+                current :: forChildren
             | Solution(_, path, _, children) ->
                 let current = path, model
                 let forChildren = children |> List.collect getModelPerFile
@@ -623,7 +627,7 @@ module SolutionExplorer =
         else
             (fn + ".fs")
 
-    let private createNewFileDialg (proj: string) (existingFiles: list<Model>) (prompt: string) =
+    let private createNewFileDialg (proj: string) (existingFiles: ResizeArray<Model>) (prompt: string) =
         let opts = createEmpty<InputBoxOptions>
         opts.placeHolder <- Some "new.fs"
         opts.prompt <- Some prompt
@@ -632,7 +636,7 @@ module SolutionExplorer =
             fun userInput ->
                 let fileExist =
                     existingFiles
-                    |> List.tryFind (fun file ->
+                    |> Seq.tryFind (fun file ->
                         match file with
                         | Workspace _
                         | Solution _
@@ -824,14 +828,36 @@ module SolutionExplorer =
                 match unbox m with
                 | File(parent, _, name, Some virtPath, proj) ->
                     match parent.Value with
-                    | Some(Project(_, proj, _, files, _, _, _, _)) ->
-                        createNewFileDialg proj files "New file name, relative to selected file"
+                    | Some(Project(_, proj, _, files, _, _, _, _) as this )  ->
+                        createNewFileDialg proj (files) "New file name, relative to selected file"
                         |> Promise.ofThenable
                         |> Promise.bind (fun file ->
                             match file with
                             | Some file ->
                                 let file' = handleUntitled file
+                                let oldFileState = Seq.toList files
+                                let siblingFileIndex = files |> Seq.findIndex(fun (File(virtualPath = Some file)) -> file = virtPath )
+                                let newFile =
+                                    let (File(path = sibilingPath; virtualPath = sibilingVPath; projectPath = projectPath )) = files.[siblingFileIndex]
+
+                                    let siblingBaseName = node.path.basename(sibilingPath)
+                                    let newFilePath = node.path.join(siblingBaseName, file')
+
+                                    let newFileVirtualPath =
+                                        sibilingVPath
+                                        |> Option.map(node.path.basename)
+                                        |> Option.map(fun siblingVirtualBaseName -> node.path.join(siblingVirtualBaseName, file'))
+
+
+                                    Model.File(ref (Some this),newFilePath, file',newFileVirtualPath, projectPath )
+
+                                files.Insert(siblingFileIndex, newFile)
+                                emiter.fire( Some (U3.Case1(this)))
                                 FsProjEdit.addFileAbove proj virtPath file'
+                                |> Promise.catch(fun ex ->
+                                    files.Clear()
+                                    files.AddRange(oldFileState)
+                                )
                             | None -> Promise.empty)
                         |> unbox
                     | _ -> undefined
@@ -846,7 +872,7 @@ module SolutionExplorer =
                 | File(parent, fr_om, name, Some virtPath, proj) ->
                     match parent.Value with
                     | Some(Project(_, proj, _, files, _, _, _, _)) ->
-                        createNewFileDialg proj files "New file name, relative to selected file"
+                        createNewFileDialg proj (files) "New file name, relative to selected file"
                         |> Promise.ofThenable
                         |> Promise.map (fun file ->
                             match file with
