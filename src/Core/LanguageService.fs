@@ -486,6 +486,22 @@ Consider:
                 | "error" -> res?Data |> parseError |> Core.Result.Error
                 | _ -> res |> unbox<ProjectResult> |> Ok)
 
+    let fsharpClearTypeCheckCache () =
+        match client with
+        | None -> Promise.empty
+        | Some cl ->
+            let req = obj()
+
+            cl.sendRequest ("fsharp/clearTypeCheckCache", req) |> Promise.map ignore
+
+    let fsharpForceGarbageCollection () =
+        match client with
+        | None -> Promise.empty
+        | Some cl ->
+            let req = obj()
+
+            cl.sendRequest ("fsharp/forceGarbageCollection", req) |> Promise.map ignore
+
     let workspacePeek dir deep excludedDirs =
         let rec mapItem (f: WorkspacePeekFoundSolutionItem) : WorkspacePeekFoundSolutionItem option =
             let mapItemKind (i: obj) : WorkspacePeekFoundSolutionItemKind option =

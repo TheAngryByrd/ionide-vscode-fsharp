@@ -90,6 +90,12 @@ let activate (context: ExtensionContext) : JS.Promise<Api> =
         tryActivate "testExplorer" TestExplorer.activate context
         tryActivate "inlayhints" InlayHints.activate context
 
+        commands.registerCommand ("fsharp.clearTypeCheckCache", LanguageService.fsharpClearTypeCheckCache |> objfy2)
+        |> context.Subscribe
+
+        commands.registerCommand ("fsharp.forceGarbageCollection", LanguageService.fsharpForceGarbageCollection |> objfy2)
+        |> context.Subscribe
+
         let buildProject project =
             promise {
                 let! exit = MSBuild.buildProjectPath "Build" project

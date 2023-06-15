@@ -154,6 +154,14 @@
         "title": "F#: Search by signatures on FSDN"
       },
       {
+        "command": "fsharp.clearTypeCheckCache",
+        "title": "F#: Clear Type Check Cache"
+      },
+      {
+        "command": "fsharp.forceGarbageCollection",
+        "title": "F#: Force Garbage Collection"
+      },
+      {
         "command": "MSBuild.buildCurrent",
         "title": "MSBuild: Build current project"
       },
@@ -1088,6 +1096,14 @@
         },
         {
           "command": "fsharp.clearCache",
+          "when": "fsharp.project.any"
+        },
+        {
+          "command": "fsharp.clearTypeCheckCache",
+          "when": "fsharp.project.any"
+        },
+        {
+          "command": "fsharp.forceGarbageCollection",
           "when": "fsharp.project.any"
         },
         {
